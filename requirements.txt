@@ -1,0 +1,11 @@
+# TensorFlow (use tflite-runtime on Raspberry Pi for better performance)
+tensorflow>=2.14.0
+
+# OpenCV for image processing and camera handling
+opencv-python>=4.8.0
+
+# NumPy for array operations
+numpy>=1.24.0
+
+# Pillow for image handling
+Pillow>=10.0.0
