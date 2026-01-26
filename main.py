@@ -10,6 +10,8 @@ import argparse
 import subprocess
 from pathlib import Path
 
+import serial
+
 import config
 from src.camera import Camera
 from src.detector import PersonDetector
@@ -115,6 +117,46 @@ def select_camera():
             print("Please enter a valid number.")
 
 
+def connect_esp32(port, baudrate):
+    """Connect to ESP32 via serial."""
+    try:
+        # Connect without resetting ESP32
+        esp = serial.Serial(port, baudrate, timeout=1, dsrdtr=False, rtscts=False)
+        esp.dtr = False  # Prevent auto-reset
+        esp.rts = False
+        time.sleep(0.5)
+
+        # Clear any buffered data
+        esp.reset_input_buffer()
+
+        # Test connection
+        esp.write(b"PING\n")
+        time.sleep(0.2)
+        response = esp.readline().decode().strip()
+
+        if "PONG" in response:
+            print(f"ESP32 connected on {port}")
+        else:
+            print(f"ESP32 connected on {port} (no PONG, continuing anyway)")
+
+        return esp
+    except serial.SerialException as e:
+        print(f"Error connecting to ESP32: {e}")
+        return None
+
+
+def send_to_esp32(esp, person_detected):
+    """Send detection status to ESP32."""
+    if esp is None:
+        return
+
+    try:
+        command = "PERSON\n" if person_detected else "NONE\n"
+        esp.write(command.encode())
+    except serial.SerialException:
+        pass
+
+
 def draw_detections(frame, detections):
     """Draw bounding boxes and labels on the frame."""
     for det in detections:
@@ -191,6 +233,17 @@ def main():
         action="store_true",
         help="Disable preview window"
     )
+    parser.add_argument(
+        "--esp32",
+        type=str,
+        default=config.ESP32_PORT,
+        help="ESP32 serial port (default: /dev/ttyUSB0)"
+    )
+    parser.add_argument(
+        "--no-esp32",
+        action="store_true",
+        help="Disable ESP32 LED control"
+    )
     args = parser.parse_args()
 
     # List cameras and exit if requested
@@ -232,6 +285,12 @@ def main():
     if not camera.start():
         return 1
 
+    # Connect to ESP32
+    esp32 = None
+    if not args.no_esp32:
+        print(f"Connecting to ESP32 on {args.esp32}...")
+        esp32 = connect_esp32(args.esp32, config.ESP32_BAUDRATE)
+
     show_preview = config.SHOW_PREVIEW and not args.no_preview
 
     print("\nPerson detection running. Press 'q' to quit.\n")
@@ -259,6 +318,9 @@ def main():
                 fps = fps_frame_count / elapsed
                 fps_frame_count = 0
                 fps_start_time = time.time()
+
+            # Send status to ESP32
+            send_to_esp32(esp32, person_detected)
 
             # Log detection
             if person_detected:
@@ -305,6 +367,8 @@ def main():
 
     finally:
         camera.stop()
+        if esp32:
+            esp32.close()
         if show_preview:
             cv2.destroyAllWindows()
 

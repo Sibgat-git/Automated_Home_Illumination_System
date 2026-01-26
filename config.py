@@ -30,3 +30,7 @@ BOX_COLOR = (0, 255, 0)  # Green
 TEXT_COLOR = (0, 255, 0)  # Green
 BOX_THICKNESS = 2
 FONT_SCALE = 0.6
+
+# ESP32 Serial settings
+ESP32_PORT = "/dev/ttyUSB0"  # Serial port for ESP32
+ESP32_BAUDRATE = 115200  # Baud rate for serial communication
